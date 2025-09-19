@@ -20,7 +20,7 @@ winsorize <- function(x, lower = 0.05, upper = 0.95) {
 ########################################
 # compute_cutoff_and_cox(): Determine cutoff and compute Cox HR and p-value
 compute_cutoff_and_cox <- function(df,gene,cut.type = "optimal", minprop = 0.25) {
-  # 确定最佳cut-off
+  # Determine the optimal cut-off point
   cutoff <- NA
   cutoff_p <- NA
   if (cut.type == "optimal") {
@@ -30,14 +30,14 @@ compute_cutoff_and_cox <- function(df,gene,cut.type = "optimal", minprop = 0.25)
     
     df$group <- df_cat[[3]]
     
-    # 提取cutoff值
+    # Extract cutoff value
     cutoff <- res.cut$cutpoint$cutpoint
     
-    # 计算cut-off对应的P值
+    # Calculate the P value corresponding to the cut-off
     surv_test <- survdiff(Surv(time, event) ~ group, data = df)
     cutoff_p <- 1 - pchisq(surv_test$chisq, df = 1)
     
-    cat(gene, " cutoff = ", round(cutoff, 3), ", p = ", signif(cutoff_p, 3), "\n")  #打印基因名
+    cat(gene, " cutoff = ", round(cutoff, 3), ", p = ", signif(cutoff_p, 3), "\n")  # Print gene names
     
   } else if (cut.type == "median") {
     cutoff <- median(df$expr, na.rm = TRUE)
@@ -60,16 +60,14 @@ compute_cutoff_and_cox <- function(df,gene,cut.type = "optimal", minprop = 0.25)
     stop("cut.type must be one of: optimal, median, quantile")
   }
   
-  
-  # Cox回归计算HR
+  # HR values ​​calculated by Cox regression
   cox_model <- tryCatch({
     coxph(Surv(time, event) ~ group, data = df)
   }, error = function(e) {
     cat("  Cox model failed:", conditionMessage(e), "\n")
     return(NULL)
   })
-  
-  
+
   if (is.null(cox_model)) next
   cox_summary <- summary(cox_model)
   
@@ -77,8 +75,7 @@ compute_cutoff_and_cox <- function(df,gene,cut.type = "optimal", minprop = 0.25)
   ci_low <- cox_summary$conf.int[,"lower .95"]
   ci_high <- cox_summary$conf.int[,"upper .95"]
   p_val <- cox_summary$coefficients[,"Pr(>|z|)"]
-  
-  
+   
   return(list(
     cutoff = cutoff,
     cutoff_p = cutoff_p,
@@ -110,7 +107,7 @@ evaluate_spline_support <- function(df, gene, plot_dir) {
                               upper = term$expr$y + 2 * term$expr$se,
                               lower = term$expr$y - 2 * term$expr$se)
       
-      # p 值通过对比 null 与 spline 拟合结果
+      # The p-value is obtained by comparing the null and spline fitting results.
       anova_result <- tryCatch(anova(fit_null, fit_spline), error = function(e) NULL)
       if (!is.null(anova_result) && nrow(anova_result) >= 2 && "Chisq" %in% colnames(anova_result)) {
         chisq_val <- anova_result$Chisq[2]
@@ -121,7 +118,7 @@ evaluate_spline_support <- function(df, gene, plot_dir) {
       }
       spline_support <- if (is.numeric(p_spline) && !is.na(p_spline) && p_spline < 0.05) TRUE else FALSE
       
-      # 绘图输出
+      # Plot Output
       spline_plot <- ggplot(spline_df, aes(x = expr, y = fit)) +
         geom_line(color = "#2C7BB6", size = 1.2) +
         geom_ribbon(aes(ymin = lower, ymax = upper), fill = "#ABD9E9", alpha = 0.5) +
@@ -151,7 +148,7 @@ compute_bootstrap_cutoffs <- function(df, n_boot = 1000, minprop = 0.25) {
   replicate(n_boot, {
     idx <- sample(1:nrow(df), replace = TRUE)
     df_bs <- df[idx, ]
-    # 使用与原始分析相同的方法(surv_cutpoint) 
+    # Use the same method as the original analysis (surv_cutpoint)
     tryCatch({
       bs_cut <- surv_cutpoint(df_bs, 
                               time = "time", 
@@ -159,7 +156,7 @@ compute_bootstrap_cutoffs <- function(df, n_boot = 1000, minprop = 0.25) {
                               variables = "expr", 
                               minprop = 0.25)
       
-      val <- as.numeric(bs_cut$cutpoint$cutpoint) # 返回expr列的cutpoint
+      val <- as.numeric(bs_cut$cutpoint$cutpoint) # Returns the cutpoint of the expr column
       if (is.numeric(val)) as.numeric(val) else NA
     }, error = function(e) { NA })
   })
@@ -234,7 +231,7 @@ analyze_cutoff_position <- function(exprset_full, expr_tumor, gene, cutoff,
   # 5. Spline support
   spline_support <-  is.numeric(p_spline) && !is.na(p_spline) && p_spline < 0.05
   
-  # Score（满分 5 分）
+  # Score (Full score: 5 points)
   score <- sum(
     as.logical(cutoff_region == "main_peak"),
     as.logical(!small_group),
@@ -299,7 +296,7 @@ plot_survival_curve <- function(df, gene, plot_dir) {
                   legend.title = "Group", legend.labs = c("Low", "High"),
                   ggtheme = theme_bw())
   
-  # HR和P值
+  # HR and P value
   sdiff <- survdiff(Surv(time, event) ~ group, data = df)
   pval <- 1 - pchisq(sdiff$chisq, df = 1)
   hr <- (sdiff$obs[2] / sdiff$exp[2]) / (sdiff$obs[1] / sdiff$exp[1])
@@ -347,31 +344,32 @@ plot_cutoff_radar <- function(top_genes, plot_dir) {
   
   library(fmsb)
   
-  # 提前保存 Cutoff_Region
+  # Save Cutoff_Region
   cutoff_region_vec <- top_genes$Cutoff_Region
   
-  # 用于评分的5个逻辑指标
+  # 5 logical indicators for scoring:
   radar_data <- top_genes[, c("Bootstrap_Stable", "Spline_Support", "TN_Consistent", "Small_Group", "Cutoff_Region")]
   
-  # 所有逻辑转 0/1（含 NA 先设为 FALSE）
+  # Logical values were converted to binary (0/1), with missing values (NA) mapped to 0 (FALSE) prior to conversion.
   radar_data <- data.frame(lapply(radar_data, function(x) {
     x[is.na(x)] <- FALSE
     as.numeric(as.logical(x))
   }))
   
-  # Small_Group 反转（TRUE -> 0，FALSE -> 1）
+  # Group balance means Small_Group here. 
+  # Inversion of Small_Group variable (TRUE -> 0, FALSE -> 1)
   radar_data$Small_Group <- 1 - radar_data$Small_Group
   
-  # Cutoff_Region: main_peak -> 1，其他为 0
+  # Cutoff_Region: 1 for main_peak, 0 for others.
   radar_data$Cutoff_Region <- as.numeric(cutoff_region_vec == "main_peak")
   
-  # 插入最大/最小行
+  # Insert maximum/minimum row
   radar_data <- rbind(rep(1, 5), rep(0, 5), radar_data)
   rownames(radar_data) <- c("Max", "Min", make.unique(as.character(top_genes$Gene)))
   
   radar_genes <- rownames(radar_data)[-c(1, 2)]
   
-  # 开始绘图
+  # Plotting part
   pdf(file.path(plot_dir, "cutoff_score_radar_plot.pdf"), width = 7, height = 7)
   
   colorkey <- c("#4271D6", "#F768A1", "#A50026", "#F46D43", "#FDAE61", "#FEE090",
@@ -404,7 +402,7 @@ plot_cutoff_score_barplot <- function(top_genes, plot_dir) {
   library(forcats)
   
   
-  # 1. 数据准备 + 添加布尔和分层特征
+  # 1. Data Preparation + Adding Boolean and Hierarchical Features
   top_genes <- top_genes %>%
     arrange(desc(Cutoff_Score)) %>%
     mutate(
@@ -418,21 +416,21 @@ plot_cutoff_score_barplot <- function(top_genes, plot_dir) {
       Group_Balance = Small_Group == FALSE
     )
   
-  # 2. 构建逻辑布尔点图数据（Reliability）
+  # Constructing Logical Boolean Point Graph Data (Reliability)
   bool_features <- top_genes %>%
     select(Gene, Peak_Region, Group_Balance, TN_Consistent, Bootstrap_Stable, Spline_Support, Survival_Sig) %>%
     pivot_longer(cols = -c(Gene, Survival_Sig), names_to = "Feature", values_to = "Value") %>%
     mutate(
-      # 强制 Feature 顺序（决定图例顺序和垂直顺序）
+      # Specify Feature Order (determines legend and vertical arrangement in the plot).
       Feature = factor(Feature, levels = c("Peak_Region", "Group_Balance", "TN_Consistent", "Bootstrap_Stable", "Spline_Support")),
-      # 根据 feature 顺序计算点的位置（最底下 -0.4，逐层往上）
-      ypos = -0.4 - (length(levels(Feature)) - as.numeric(Feature)) * 0.4  # 倒序排列
+      # Map feature order to Y-axis coordinates (bottom at -0.4, incrementing upwards in reverse order)
+      ypos = -0.4 - (length(levels(Feature)) - as.numeric(Feature)) * 0.4  # Reverse order
     )
   
-  # 3. 主图：柱状图 + 打分标签
+  # 3.Main figure: bar chart + scoring label
   p <- ggplot(top_genes, aes(x = Gene, y = Cutoff_Score, fill = Cutoff_Score)) +
     geom_col(width = 0.45) +
-    scale_fill_viridis_c(option = "B", direction = -1, limits = c(0, 5),name = "Cutoff Score") + # "E" 黄 "F" 粉  "G" 蓝
+    scale_fill_viridis_c(option = "B", direction = -1, limits = c(0, 5),name = "Cutoff Score") + 
     geom_text(aes(label = round(Cutoff_Score, 1)), vjust = -1.2, color = "black", size = 5) +
     coord_cartesian(ylim = c(-2, 5)) + coord_flip() +
     theme_minimal(base_size = 14) +
@@ -440,7 +438,7 @@ plot_cutoff_score_barplot <- function(top_genes, plot_dir) {
          y = "Cutoff Score (Max = 5)", x = " ") +
     theme(legend.position = "right")
   
-  # 4. 点图层：逻辑布尔指标 + 生存显著性控制颜色
+  # 4. Point layer: Logical Boolean indicator + survival significance
   p <- p + geom_point(
     data = bool_features,
     mapping = aes(x = Gene, y = ypos, shape = Feature, color = Survival_Sig, alpha = Value),
@@ -466,7 +464,7 @@ plot_cutoff_score_barplot <- function(top_genes, plot_dir) {
       alpha = guide_legend(title = "Satisfied")
     )
   
-  # 保存
+  # Save figure
   ggsave(file.path(plot_dir, "cutoff_score_summary_plot.pdf"), plot = p, width = 10, height = 6)
   print(p)
 }
@@ -508,3 +506,4 @@ summarize_results <- function(results, adjust_method = "BH", score_threshold = 1
   cat("Returning list with results_df and top_genes\n")
   return(list(results_df = results_df, top_genes = top_genes))
 }
+
