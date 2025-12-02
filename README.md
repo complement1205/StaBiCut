@@ -7,4 +7,5 @@ It systematically evaluates candidate survival cutoffs across five key criteria:
 4. **Bootstrap stability** – cutoff distribution shows low variability across resamples.  
 5. **Spline support** – survival trend supported by spline-based modeling.  
 
-<img width="3140" height="1250" alt="Stabicut_logo" src="https://github.com/user-attachments/assets/4f5c211c-31d9-4665-a5f6-aece0e6f13ea" />
+
+![Stabicut_logo](https://github.com/user-attachments/assets/d68c2873-fac3-4730-bfc4-e415118f939e)
